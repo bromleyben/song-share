@@ -1,0 +1,273 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Backend infrastructure for song-share application
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+    - dev
+    - prod
+Resources:
+  UserFilesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: song-share-user-files-${Environment}
+      CorsConfiguration:
+        CorsRules:
+        - AllowedOrigins:
+          - '*'
+          AllowedMethods:
+          - GET
+          - PUT
+          - POST
+          - DELETE
+          AllowedHeaders:
+          - '*'
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName:
+        Fn::Sub: song-share-pool-${Environment}
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+      UsernameAttributes:
+      - email
+      AutoVerifiedAttributes:
+      - email
+      Schema:
+      - AttributeDataType: String
+        Name: email
+        Required: false
+  CongitoWebClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: web-client
+      UserPoolId:
+        Ref: CognitoUserPool
+      ExplicitAuthFlows:
+      - ALLOW_CUSTOM_AUTH
+      - ALLOW_REFRESH_TOKEN_AUTH
+      - ALLOW_USER_SRP_AUTH
+      - ALLOW_USER_PASSWORD_AUTH
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName:
+        Fn::Sub: song-share-identity-pool-${Environment}
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+      - ClientId:
+          Ref: CongitoWebClient
+        ProviderName:
+          Fn::GetAtt:
+          - CognitoUserPool
+          - ProviderName
+  IdentityPoolRoleMapping:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId:
+        Ref: IdentityPool
+      Roles:
+        authenticated:
+          Fn::GetAtt:
+          - CognitoAuthorizedRole
+          - Arn
+        unauthenticated:
+          Fn::GetAtt:
+          - CognitoUnAuthorizedRole
+          - Arn
+  CognitoAuthorizedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Federated: cognito-identity.amazonaws.com
+          Action:
+          - sts:AssumeRoleWithWebIdentity
+          Condition:
+            StringEquals:
+              cognito-identity.amazonaws.com:aud:
+                Ref: IdentityPool
+            ForAnyValue:StringLike:
+              cognito-identity.amazonaws.com:amr: authenticated
+      Policies:
+      - PolicyName: OthersFileAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            Resource:
+              Fn::Sub: arn:aws:s3:::${UserFilesBucket}/protected/*
+      - PolicyName: OwnFileAccess
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+            Resource:
+              Fn::Sub: arn:aws:s3:::${UserFilesBucket}/protected/${!cognito-identity.amazonaws.com:sub}/*
+  CognitoUnAuthorizedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Federated: cognito-identity.amazonaws.com
+          Action:
+          - sts:AssumeRoleWithWebIdentity
+          Condition:
+            StringEquals:
+              cognito-identity.amazonaws.com:aud:
+                Ref: IdentityPool
+            ForAnyValue:StringLike:
+              cognito-identity.amazonaws.com:amr: unauthenticated
+  RestAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name:
+        Fn::Sub: song-share-rest-api-${Environment}
+      StageName:
+        Ref: Environment
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        AddApiKeyRequiredToCorsPreflight: false
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn:
+              Fn::GetAtt:
+              - CognitoUserPool
+              - Arn
+      Cors:
+        AllowOrigin: '''*'''
+        AllowHeaders: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'''
+  MainTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName:
+        Fn::Sub: song-share-main-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+      - AttributeName: partition
+        KeyType: HASH
+      - AttributeName: id
+        KeyType: RANGE
+      AttributeDefinitions:
+      - AttributeName: id
+        AttributeType: S
+      - AttributeName: partition
+        AttributeType: S
+  FollowersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName:
+        Fn::Sub: song-share-followers-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+      - AttributeName: partition
+        KeyType: HASH
+      - AttributeName: id
+        KeyType: RANGE
+      AttributeDefinitions:
+      - AttributeName: id
+        AttributeType: S
+      - AttributeName: partition
+        AttributeType: S
+  MainRestAPIHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: artist-api-${Environment}
+      Events:
+        GetArtists:
+          Type: Api
+          Properties:
+            Path: /artists
+            Method: get
+            RestApiId:
+              Ref: RestAPI
+        AddSong:
+          Type: Api
+          Properties:
+            Path: /artist/{id}/song
+            Method: post
+            RestApiId:
+              Ref: RestAPI
+            RequestParameters:
+            - method.request.path.id
+      Runtime: nodejs20.x
+      Handler: index.handler
+      CodeUri: MainRestAPIHandler
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: FollowersTable
+      Environment:
+        Variables:
+          FollowersTableName:
+            Ref: FollowersTable
+    Metadata:
+      SamResourceId: MainRestAPIHandler
+  FollowersRestAPIHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: followers-api-${Environment}
+      Events:
+        GetFollowers:
+          Type: Api
+          Properties:
+            Path: /followers/{id}
+            Method: get
+            RestApiId:
+              Ref: RestAPI
+            RequestParameters:
+            - method.request.path.id
+        GetFollowing:
+          Type: Api
+          Properties:
+            Path: /following/{id}
+            Method: get
+            RestApiId:
+              Ref: RestAPI
+            RequestParameters:
+            - method.request.path.id
+        CreateFollower:
+          Type: Api
+          Properties:
+            Path: /follower
+            Method: POST
+            RestApiId:
+              Ref: RestAPI
+        RemoveFollower:
+          Type: Api
+          Properties:
+            Path: /follower
+            Method: delete
+            RestApiId:
+              Ref: RestAPI
+      Runtime: nodejs20.x
+      Handler: index.handler
+      CodeUri: FollowersRestAPIHandler
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: MainTable
+      Environment:
+        Variables:
+          MainTableName:
+            Ref: MainTable
+    Metadata:
+      SamResourceId: FollowersRestAPIHandler
