@@ -9,7 +9,7 @@ A simple serverless applications for uploading and viewing songs. Contains the f
 ## Frontend
 A static React application utilizing vite. 
 
-Before running, run `pnpm install` or `npm install`
+Before running, install dependencies with `pnpm install` or `npm install`
 
 To run in dev mode simply run:
 ```pnpm run dev``` in the web-app directory.
