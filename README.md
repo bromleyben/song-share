@@ -7,8 +7,12 @@ A simple serverless applications for uploading and viewing songs. Contains the f
 - Follow other artists and be notified when they upload a new song
 
 ## Frontend
-A static React application utilizing vite. To run in dev mode simple run:
-```npm run dev``` in the web-app directory
+A static React application utilizing vite. 
+
+Before running, run `pnpm install` or `npm install`
+
+To run in dev mode simply run:
+```pnpm run dev``` in the web-app directory.
 
 ## Backend
 Serverless AWS infrastructure built using AWS SAM w/ Cloudformation
