@@ -115,6 +115,9 @@ Resources:
             - s3:PutObject
             - s3:GetObject
             - s3:DeleteObject
+            - s3:AbortMultipartUpload
+            - s3:ListMultipartUploads
+            - s3:ListParts
             Resource:
               Fn::Sub: arn:aws:s3:::${UserFilesBucket}/protected/${!cognito-identity.amazonaws.com:sub}/*
   CognitoUnAuthorizedRole:
@@ -169,6 +172,15 @@ Resources:
         AttributeType: S
       - AttributeName: partition
         AttributeType: S
+      - AttributeName: artist_id
+        AttributeType: S
+      GlobalSecondaryIndexes:
+      - IndexName: ByArtist
+        KeySchema:
+        - AttributeName: artist_id
+          KeyType: HASH
+        Projection:
+          ProjectionType: ALL
   FollowersTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -198,6 +210,15 @@ Resources:
             Method: get
             RestApiId:
               Ref: RestAPI
+        GetArtist:
+          Type: Api
+          Properties:
+            Path: /artist/{id}
+            Method: get
+            RestApiId:
+              Ref: RestAPI
+            RequestParameters:
+            - method.request.path.id
         AddSong:
           Type: Api
           Properties:
@@ -213,9 +234,14 @@ Resources:
       Policies:
       - DynamoDBCrudPolicy:
           TableName:
+            Ref: MainTable
+      - DynamoDBCrudPolicy:
+          TableName:
             Ref: FollowersTable
       Environment:
         Variables:
+          MainTableName:
+            Ref: MainTable
           FollowersTableName:
             Ref: FollowersTable
     Metadata:
@@ -226,41 +252,43 @@ Resources:
       FunctionName:
         Fn::Sub: followers-api-${Environment}
       Events:
-        GetFollowers:
-          Type: Api
-          Properties:
-            Path: /followers/{id}
-            Method: get
-            RestApiId:
-              Ref: RestAPI
-            RequestParameters:
-            - method.request.path.id
-        GetFollowing:
-          Type: Api
-          Properties:
-            Path: /following/{id}
-            Method: get
-            RestApiId:
-              Ref: RestAPI
-            RequestParameters:
-            - method.request.path.id
         CreateFollower:
           Type: Api
           Properties:
-            Path: /follower
+            Path: /follow/{artist_id}
             Method: POST
             RestApiId:
               Ref: RestAPI
-        RemoveFollower:
-          Type: Api
-          Properties:
-            Path: /follower
-            Method: delete
-            RestApiId:
-              Ref: RestAPI
+            RequestParameters:
+            - method.request.path.artist_id
       Runtime: nodejs20.x
       Handler: index.handler
       CodeUri: FollowersRestAPIHandler
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: FollowersTable
+      Environment:
+        Variables:
+          FollowersTableName:
+            Ref: FollowersTable
+    Metadata:
+      SamResourceId: FollowersRestAPIHandler
+  CognitoPostConfirmationHandler:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName:
+        Fn::Sub: song-share-post-confirmation-${Environment}
+      Events:
+        PostConfirmation:
+          Type: Cognito
+          Properties:
+            UserPool:
+              Ref: CognitoUserPool
+            Trigger: PostConfirmation
+      Runtime: nodejs20.x
+      Handler: index.handler
+      CodeUri: CognitoPostConfirmationHandler
       Policies:
       - DynamoDBCrudPolicy:
           TableName:
@@ -270,4 +298,4 @@ Resources:
           MainTableName:
             Ref: MainTable
     Metadata:
-      SamResourceId: FollowersRestAPIHandler
+      SamResourceId: CognitoPostConfirmationHandler

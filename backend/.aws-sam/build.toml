@@ -9,4 +9,13 @@ manifest_hash = ""
 packagetype = "Zip"
 functions = ["MainRestAPIHandler", "FollowersRestAPIHandler"]
 
+[function_build_definitions.659c7b21-a3ee-4b84-b72f-82bf6056b856]
+codeuri = "/home/ben/dev/song-share/backend/auth/PostConfirmationLambda"
+runtime = "nodejs20.x"
+architecture = "x86_64"
+handler = "index.handler"
+manifest_hash = ""
+packagetype = "Zip"
+functions = ["CognitoPostConfirmationHandler"]
+
 [layer_build_definitions]
