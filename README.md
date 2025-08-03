@@ -8,7 +8,7 @@ A simple serverless applications for uploading and viewing songs. Contains the f
 
 ## Frontend
 A static React application utilizing vite. To run in dev mode simple run:
-```npm run dev```
+```npm run dev``` in the web-app directory
 
 ## Backend
 Serverless AWS infrastructure built using AWS SAM w/ Cloudformation
