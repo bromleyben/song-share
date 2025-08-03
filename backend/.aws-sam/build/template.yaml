@@ -238,6 +238,8 @@ Resources:
       - DynamoDBCrudPolicy:
           TableName:
             Ref: FollowersTable
+      - SESCrudPolicy:
+          IdentityName: bromleyben7@gmail.com
       Environment:
         Variables:
           MainTableName:
@@ -255,7 +257,7 @@ Resources:
         CreateFollower:
           Type: Api
           Properties:
-            Path: /follow/{artist_id}
+            Path: /followings/{artist_id}
             Method: POST
             RestApiId:
               Ref: RestAPI

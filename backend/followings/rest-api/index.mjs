@@ -2,7 +2,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 import crypto from "crypto";
 
-const TableName = process.env.FollowingsTableName;
+const TableName = process.env.FollowersTableName;
 
 const ddb_client = DynamoDBDocumentClient.from(
   new DynamoDBClient({ region: "ap-southeast-2" })

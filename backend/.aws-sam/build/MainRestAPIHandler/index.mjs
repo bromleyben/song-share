@@ -54,8 +54,10 @@ export async function handler(event) {
     const follower_ids = await getFollowerIds(artist_id);
 
     for (const follower_id of follower_ids) {
-      const artist = await getArtistByID(follower_id);
-      await sendEmail(artist.email, new_song);
+      const email = await getArtistEmail(follower_id);
+
+      console.log(`Sending email to ${email} with song ${new_song.name}`);
+      await sendEmail(email, new_song);
     }
 
     return withCorsHeaders({
@@ -69,6 +71,26 @@ export async function handler(event) {
   };
 }
 
+async function getArtistEmail(artist_id) {
+  const result = await ddb_client.send(
+    new QueryCommand({
+      TableName: main_table,
+      KeyConditionExpression:
+        "#partition = :partition AND #artist_id = :artist_id",
+      ExpressionAttributeNames: {
+        "#partition": "partition",
+        "#artist_id": "id",
+      },
+      ExpressionAttributeValues: {
+        ":partition": "artist",
+        ":artist_id": artist_id,
+      },
+      ProjectionExpression: "email",
+    })
+  );
+
+  return result.Items[0].email;
+}
 async function getArtistByID(id) {
   const result = await ddb_client.send(
     new QueryCommand({
@@ -129,22 +151,24 @@ async function getFollowerIds(artist_id) {
 }
 
 async function createSong(song, artist_id) {
-  const result = await ddb_client.send(
+  const Item = {
+    partition: "song",
+    id: generateId(),
+    name: song.name,
+    artist_id: artist_id,
+    song_file_key: song.song_file_key,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  await ddb_client.send(
     new PutCommand({
       TableName: main_table,
-      Item: {
-        partition: "song",
-        id: generateId(),
-        name: song.name,
-        artist_id: artist_id,
-        song_file_key: song.song_file_key,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
+      Item,
     })
   );
 
-  return result.Attributes;
+  return Item;
 }
 
 function generateId() {
@@ -163,12 +187,12 @@ export function withCorsHeaders(data) {
   };
 }
 
-function sendEmail(email, new_song) {
+async function sendEmail(email, new_song) {
   console.log(`Sending email to ${email} with song ${new_song.name}`);
 
-  ses_client.send(
+  await ses_client.send(
     new SendEmailCommand({
-      Source: "noreply@example.com", // TODO: Change this to the actual email
+      Source: "bromleyben7@gmail.com",
       Destination: {
         ToAddresses: [email],
       },

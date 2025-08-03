@@ -25,7 +25,7 @@ export const AWS_RESOURCES = {
     Storage: {
       S3: {
         region: "ap-southeast-2",
-        bucket: "song-share-user-files-dev ",
+        bucket: "song-share-user-files-dev",
       },
     },
     API: {

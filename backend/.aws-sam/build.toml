@@ -7,7 +7,7 @@ architecture = "x86_64"
 handler = "index.handler"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["MainRestAPIHandler", "FollowersRestAPIHandler"]
+functions = ["MainRestAPIHandler"]
 
 [function_build_definitions.659c7b21-a3ee-4b84-b72f-82bf6056b856]
 codeuri = "/home/ben/dev/song-share/backend/auth/PostConfirmationLambda"
@@ -17,5 +17,14 @@ handler = "index.handler"
 manifest_hash = ""
 packagetype = "Zip"
 functions = ["CognitoPostConfirmationHandler"]
+
+[function_build_definitions.68332d31-2e22-4823-a54b-1c0dfdc30b55]
+codeuri = "/home/ben/dev/song-share/backend/followings/rest-api"
+runtime = "nodejs20.x"
+architecture = "x86_64"
+handler = "index.handler"
+manifest_hash = ""
+packagetype = "Zip"
+functions = ["FollowersRestAPIHandler"]
 
 [layer_build_definitions]
